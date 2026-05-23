@@ -1,0 +1,228 @@
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:pdf_translator/models/reader_theme.dart';
+import 'package:pdf_translator/services/translation_service.dart';
+
+enum PdfPageFilter {
+  none,
+  sepia,
+  invert,
+  monochrome,
+}
+
+class ReaderProvider extends ChangeNotifier {
+  PlatformFile? _selectedFile;
+  bool _isFileLoading = false;
+  String? _fileError;
+
+  String _originalText = '';
+  String _translatedText = '';
+  bool _isTranslating = false;
+  String? _translationError;
+
+  // Translation configuration
+  String _targetLanguage = 'id'; // default: Indonesian
+  double _translationFontSize = 16.0;
+
+  // Selected Theme (default is Sepia Paper)
+  ReaderTheme _currentTheme = ReaderTheme.allThemes.firstWhere(
+    (t) => t.type == ReaderThemeType.sepia,
+    orElse: () => ReaderTheme.allThemes.first,
+  );
+
+  // PDF Page color filter (defaults to none, but changes based on theme)
+  PdfPageFilter _pdfFilter = PdfPageFilter.none;
+
+  // Getters
+  PlatformFile? get selectedFile => _selectedFile;
+  bool get isFileLoading => _isFileLoading;
+  String? get fileError => _fileError;
+
+  String get originalText => _originalText;
+  String get translatedText => _translatedText;
+  bool get isTranslating => _isTranslating;
+  String? get translationError => _translationError;
+
+  String get targetLanguage => _targetLanguage;
+  double get translationFontSize => _translationFontSize;
+  ReaderTheme get currentTheme => _currentTheme;
+  PdfPageFilter get pdfFilter => _pdfFilter;
+
+  // Target languages list
+  final Map<String, String> supportedLanguages = {
+    'id': 'Bahasa Indonesia',
+    'en': 'English',
+    'es': 'Español (Spanish)',
+    'fr': 'Français (French)',
+    'de': 'Deutsch (German)',
+    'ja': '日本語 (Japanese)',
+    'zh': '中文 (Chinese)',
+    'ar': 'العربية (Arabic)',
+    'ru': 'Русский (Russian)',
+  };
+
+  /// Pick a PDF file using FilePicker
+  Future<void> pickPdfFile() async {
+    _isFileLoading = true;
+    _fileError = null;
+    notifyListeners();
+
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+        withData: true, // Required for Web to get file bytes
+      );
+
+      if (result != null && result.files.isNotEmpty) {
+        final file = result.files.first;
+        if (file.name.toLowerCase().endsWith('.pdf')) {
+          _selectedFile = file;
+          _originalText = '';
+          _translatedText = '';
+          _translationError = null;
+          
+          // Auto-adjust page filter for night themes when a new file is loaded
+          _syncPdfFilterWithTheme();
+        } else {
+          _fileError = 'Format file tidak didukung. Pilih file PDF.';
+        }
+      }
+    } catch (e) {
+      _fileError = 'Gagal memuat file: $e';
+    } finally {
+      _isFileLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Close the current file
+  void clearFile() {
+    _selectedFile = null;
+    _originalText = '';
+    _translatedText = '';
+    _fileError = null;
+    _translationError = null;
+    notifyListeners();
+  }
+
+  /// Change theme
+  void changeTheme(ReaderTheme theme) {
+    _currentTheme = theme;
+    // Auto-match PDF page filter with theme for a better reader experience
+    _syncPdfFilterWithTheme();
+    notifyListeners();
+  }
+
+  /// Sync PDF filter with the current theme to support long-time reading
+  void _syncPdfFilterWithTheme() {
+    if (_currentTheme.type == ReaderThemeType.solarizedDark || 
+        _currentTheme.type == ReaderThemeType.charcoalNight) {
+      _pdfFilter = PdfPageFilter.invert;
+    } else if (_currentTheme.type == ReaderThemeType.sepia) {
+      _pdfFilter = PdfPageFilter.sepia;
+    } else {
+      _pdfFilter = PdfPageFilter.none;
+    }
+  }
+
+  /// Change PDF page filter
+  void changePdfFilter(PdfPageFilter filter) {
+    _pdfFilter = filter;
+    notifyListeners();
+  }
+
+  /// Update target translation language
+  void changeTargetLanguage(String langCode) {
+    if (supportedLanguages.containsKey(langCode)) {
+      _targetLanguage = langCode;
+      notifyListeners();
+      // If we already have copied text, re-translate it to the new language
+      if (_originalText.isNotEmpty) {
+        translateText(_originalText);
+      }
+    }
+  }
+
+  /// Update font size for the translation box
+  void changeFontSize(double size) {
+    if (size >= 12.0 && size <= 28.0) {
+      _translationFontSize = size;
+      notifyListeners();
+    }
+  }
+
+  /// Pastes text from clipboard and triggers translation
+  Future<void> pasteAndTranslate() async {
+    _isTranslating = true;
+    _translationError = null;
+    notifyListeners();
+
+    try {
+      final clipboardData = await Clipboard.getData(Clipboard.kTextPlain);
+      final text = clipboardData?.text;
+
+      if (text != null && text.trim().isNotEmpty) {
+        _originalText = text;
+        _translatedText = await TranslationService.translate(text, _targetLanguage);
+      } else {
+        _translationError = 'Clipboard kosong atau tidak berisi teks valid.';
+      }
+    } catch (e) {
+      _translationError = 'Gagal menerjemahkan: ${e.toString().replaceAll('Exception:', '')}';
+    } finally {
+      _isTranslating = false;
+      notifyListeners();
+    }
+  }
+
+  /// Manually trigger translation for custom/copied text
+  Future<void> translateText(String text) async {
+    if (text.trim().isEmpty) return;
+    
+    _isTranslating = true;
+    _translationError = null;
+    _originalText = text;
+    notifyListeners();
+
+    try {
+      _translatedText = await TranslationService.translate(text, _targetLanguage);
+    } catch (e) {
+      _translationError = 'Gagal menerjemahkan: ${e.toString().replaceAll('Exception:', '')}';
+    } finally {
+      _isTranslating = false;
+      notifyListeners();
+    }
+  }
+
+  /// Helper to get the ColorFilter matrix for PDF rendering
+  List<double>? get colorFilterMatrix {
+    switch (_pdfFilter) {
+      case PdfPageFilter.sepia:
+        return const [
+          0.393, 0.769, 0.189, 0.0, 0.0,
+          0.349, 0.686, 0.168, 0.0, 0.0,
+          0.272, 0.534, 0.131, 0.0, 0.0,
+          0.0,   0.0,   0.0,   1.0, 0.0,
+        ];
+      case PdfPageFilter.invert:
+        return const [
+          -1.0,  0.0,  0.0, 0.0, 255.0,
+           0.0, -1.0,  0.0, 0.0, 255.0,
+           0.0,  0.0, -1.0, 0.0, 255.0,
+           0.0,  0.0,  0.0, 1.0,   0.0,
+        ];
+      case PdfPageFilter.monochrome:
+        return const [
+          0.2126, 0.7152, 0.0722, 0.0, 0.0,
+          0.2126, 0.7152, 0.0722, 0.0, 0.0,
+          0.2126, 0.7152, 0.0722, 0.0, 0.0,
+          0.0,    0.0,    0.0,    1.0, 0.0,
+        ];
+      case PdfPageFilter.none:
+      default:
+        return null;
+    }
+  }
+}
