@@ -219,6 +219,12 @@ class ReaderProvider extends ChangeNotifier {
     }
   }
 
+  /// Update the translated text directly (e.g., after manual editing)
+  void updateTranslatedText(String newText) {
+    _translatedText = newText;
+    notifyListeners();
+  }
+
   /// Helper to get the ColorFilter matrix for PDF rendering
   List<double>? get colorFilterMatrix {
     switch (_pdfFilter) {
