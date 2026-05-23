@@ -13,7 +13,7 @@ class TranslationPanel extends StatefulWidget {
 class _TranslationPanelState extends State<TranslationPanel> {
   late TextEditingController _textController;
   bool _isEditing = false;
-  String _lastTranslatedText = '';
+  String _lastOriginalText = '';
 
   @override
   void initState() {
@@ -44,17 +44,18 @@ class _TranslationPanelState extends State<TranslationPanel> {
     final provider = Provider.of<ReaderProvider>(context);
     final theme = provider.currentTheme;
 
-    // Reset editing state and sync controller when the translation changes from outside
-    if (provider.translatedText != _lastTranslatedText) {
-      _lastTranslatedText = provider.translatedText;
-      _textController.text = provider.translatedText;
+    // Reset editing state and sync controller when the original text changes from outside
+    if (provider.originalText != _lastOriginalText) {
+      _lastOriginalText = provider.originalText;
+      _textController.text = provider.originalText;
       _isEditing = false;
     }
 
     // Return nothing if there is no active translation, load error, or translation in progress
-    final hasContent = provider.translatedText.isNotEmpty || 
-                       provider.isTranslating || 
-                       provider.translationError != null;
+    final hasContent =
+        provider.translatedText.isNotEmpty ||
+        provider.isTranslating ||
+        provider.translationError != null;
 
     return AnimatedSize(
       duration: const Duration(milliseconds: 250),
@@ -88,7 +89,7 @@ class _TranslationPanelState extends State<TranslationPanel> {
                       children: [
                         // Target language badge
                         Text(
-                          provider.supportedLanguages[provider.targetLanguage]?.toUpperCase() ?? '',
+                          'TERJEMAHAN (${provider.supportedLanguages[provider.targetLanguage]?.toUpperCase() ?? ''})',
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
@@ -100,7 +101,8 @@ class _TranslationPanelState extends State<TranslationPanel> {
                         Row(
                           children: [
                             // Action buttons only if not loading and translation is present
-                            if (provider.translatedText.isNotEmpty && !provider.isTranslating) ...[
+                            if (provider.translatedText.isNotEmpty &&
+                                !provider.isTranslating) ...[
                               // Copy button
                               IconButton(
                                 icon: const Icon(Icons.copy_rounded, size: 16),
@@ -108,27 +110,35 @@ class _TranslationPanelState extends State<TranslationPanel> {
                                 constraints: const BoxConstraints(),
                                 color: theme.textColor.withOpacity(0.55),
                                 tooltip: 'Salin Terjemahan',
-                                onPressed: () => _copyToClipboard(context, provider.translatedText),
+                                onPressed: () =>
+                                    _copyToClipboard(context, provider.translatedText),
                               ),
                               const SizedBox(width: 14),
                               // Edit / Confirm button
                               IconButton(
-                                icon: Icon(_isEditing ? Icons.check_rounded : Icons.edit_rounded, size: 16),
+                                icon: Icon(
+                                  _isEditing ? Icons.check_rounded : Icons.edit_rounded,
+                                  size: 16,
+                                ),
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
-                                color: _isEditing ? theme.accentColor : theme.textColor.withOpacity(0.55),
-                                tooltip: _isEditing ? 'Selesai Edit' : 'Edit Terjemahan',
+                                color: _isEditing
+                                    ? theme.accentColor
+                                    : theme.textColor.withOpacity(0.55),
+                                tooltip: _isEditing
+                                    ? 'Selesai Edit & Terjemahkan'
+                                    : 'Edit Teks Asli',
                                 onPressed: () {
                                   if (_isEditing) {
-                                    final newText = _textController.text;
-                                    _lastTranslatedText = newText;
-                                    provider.updateTranslatedText(newText);
+                                    final newOriginal = _textController.text;
+                                    _lastOriginalText = newOriginal;
+                                    provider.translateText(newOriginal);
                                     setState(() {
                                       _isEditing = false;
                                     });
                                   } else {
                                     setState(() {
-                                      _textController.text = provider.translatedText;
+                                      _textController.text = provider.originalText;
                                       _isEditing = true;
                                     });
                                   }
@@ -212,45 +222,65 @@ class _TranslationPanelState extends State<TranslationPanel> {
     }
 
     if (_isEditing) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4.0),
-        child: TextField(
-          controller: _textController,
-          maxLines: null,
-          keyboardType: TextInputType.multiline,
-          style: TextStyle(
-            fontSize: provider.translationFontSize,
-            color: theme.textColor,
-            height: 1.5,
-            fontWeight: FontWeight.w500,
-          ),
-          decoration: InputDecoration(
-            border: InputBorder.none,
-            isDense: true,
-            contentPadding: EdgeInsets.zero,
-            hintText: 'Edit terjemahan...',
-            hintStyle: TextStyle(
-              color: theme.textColor.withOpacity(0.35),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'EDIT TEKS ASLI:',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: theme.textColor.withOpacity(0.5),
             ),
           ),
-          autofocus: true,
-        ),
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4.0),
+            child: TextField(
+              controller: _textController,
+              maxLines: null,
+              keyboardType: TextInputType.multiline,
+              style: TextStyle(
+                fontSize: provider.translationFontSize,
+                color: theme.textColor,
+                height: 1.5,
+                fontWeight: FontWeight.w500,
+              ),
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: theme.accentColor.withOpacity(0.5)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: theme.accentColor),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                hintText: 'Edit teks asli di sini...',
+                hintStyle: TextStyle(color: theme.textColor.withOpacity(0.35)),
+              ),
+              autofocus: true,
+            ),
+          ),
+        ],
       );
     }
 
-    return SelectionArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4.0),
-        child: Text(
-          provider.translatedText,
-          style: TextStyle(
-            fontSize: provider.translationFontSize,
-            color: theme.textColor,
-            height: 1.5,
-            fontWeight: FontWeight.w500,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SelectionArea(
+          child: Text(
+            provider.translatedText,
+            style: TextStyle(
+              fontSize: provider.translationFontSize,
+              color: theme.textColor,
+              height: 1.5,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 }
