@@ -1,5 +1,11 @@
 {
   "dependencies": {
     "firebase-tools": "^15.18.0"
+  },
+  "scripts": {
+    "build:web": "flutter build web --release",
+    "deploy:web": "npx firebase deploy --only hosting",
+    "build:apk": "flutter build apk --release",
+    "distribute:apk": "npx firebase appdistribution:distribute build/app/outputs/flutter-apk/app-release.apk --app 1:978108571033:android:b687b61d02e693a9280708"
   }
 }

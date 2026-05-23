@@ -1,4 +1,4 @@
-package com.atrialfa.pdf_translator
+package com.atri.pdf
 
 import io.flutter.embedding.android.FlutterActivity
 

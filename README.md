@@ -96,3 +96,20 @@ storeFile=/Users/atrialfa/documents/myproject/PdfTranslator/atripdf-keystore.jks
     ```bash
     flutter build appbundle --release
     ```
+
+---
+
+### 3. Firebase App Distribution
+
+The Android app is configured under the package identifier `com.atri.pdf` and registered in Firebase App Distribution. You can build and upload the release APK using the following convenience scripts:
+
+*   **Build the APK:**
+    ```bash
+    npm run build:apk
+    ```
+*   **Upload and Distribute to Testers:**
+    ```bash
+    npm run distribute:apk
+    ```
+
+You can view releases, manage testers, and configure groups in the [Firebase Console](https://console.firebase.google.com/project/atrialfa-1dc01/appdistribution).
