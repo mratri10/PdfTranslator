@@ -87,16 +87,6 @@ class _TranslationPanelState extends State<TranslationPanel> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // Target language badge
-                        Text(
-                          'TERJEMAHAN (${provider.supportedLanguages[provider.targetLanguage]?.toUpperCase() ?? ''})',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: theme.accentColor,
-                            letterSpacing: 1.0,
-                          ),
-                        ),
                         // Quick Action Buttons
                         Row(
                           children: [

@@ -1,8 +1,10 @@
+import 'dart:io' as io;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:pdf_translator/models/reader_theme.dart';
 import 'package:pdf_translator/services/translation_service.dart';
+import 'package:pdf_translator/services/book_storage_service.dart';
 
 enum PdfPageFilter {
   none,
@@ -42,6 +44,18 @@ class ReaderProvider extends ChangeNotifier {
   // PDF Page color filter (defaults to none, but changes based on theme)
   PdfPageFilter _pdfFilter = PdfPageFilter.none;
 
+  // Book-like rendering configuration
+  bool _isBookMode = true;
+
+  // Local storage lists for books (Android feature)
+  List<io.File> _localBooks = [];
+  bool _isStoragePermissionGranted = false;
+  bool _bookFolderExists = false;
+
+  ReaderProvider() {
+    initLocalBooks();
+  }
+
   // Getters
   PlatformFile? get selectedFile => _selectedFile;
   bool get isFileLoading => _isFileLoading;
@@ -57,6 +71,71 @@ class ReaderProvider extends ChangeNotifier {
   double get translationFontSize => _translationFontSize;
   ReaderTheme get currentTheme => _currentTheme;
   PdfPageFilter get pdfFilter => _pdfFilter;
+
+  bool get isBookMode => _isBookMode;
+  List<io.File> get localBooks => _localBooks;
+  bool get isStoragePermissionGranted => _isStoragePermissionGranted;
+  bool get bookFolderExists => _bookFolderExists;
+
+  void toggleBookMode() {
+    _isBookMode = !_isBookMode;
+    notifyListeners();
+  }
+
+  Future<void> initLocalBooks() async {
+    if (kIsWeb) return;
+    _bookFolderExists = await BookStorageService.checkFolderExists();
+    if (_bookFolderExists) {
+      _localBooks = await BookStorageService.getBookList();
+      _isStoragePermissionGranted = true;
+    }
+    notifyListeners();
+  }
+
+  Future<void> createBookFolder() async {
+    if (kIsWeb) return;
+    final created = await BookStorageService.createBookFolder();
+    if (created) {
+      _bookFolderExists = true;
+      _isStoragePermissionGranted = true;
+      _localBooks = await BookStorageService.getBookList();
+    }
+    notifyListeners();
+  }
+
+  Future<void> refreshLocalBooks() async {
+    if (kIsWeb) return;
+    _bookFolderExists = await BookStorageService.checkFolderExists();
+    if (_bookFolderExists) {
+      _localBooks = await BookStorageService.getBookList();
+    }
+    notifyListeners();
+  }
+
+  Future<void> selectLocalBook(io.File file) async {
+    _isFileLoading = true;
+    _fileError = null;
+    notifyListeners();
+
+    try {
+      final name = file.path.split('/').last;
+      final size = await file.length();
+      _selectedFile = PlatformFile(
+        name: name,
+        size: size,
+        path: file.path,
+      );
+      _originalText = '';
+      _translatedText = '';
+      _translationError = null;
+      _syncPdfFilterWithTheme();
+    } catch (e) {
+      _fileError = 'Gagal memuat buku: $e';
+    } finally {
+      _isFileLoading = false;
+      notifyListeners();
+    }
+  }
 
   void toggleInteractionMode() {
     _interactionMode = _interactionMode == ReaderInteractionMode.selection
