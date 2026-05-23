@@ -11,6 +11,11 @@ enum PdfPageFilter {
   monochrome,
 }
 
+enum ReaderInteractionMode {
+  selection,
+  pan,
+}
+
 class ReaderProvider extends ChangeNotifier {
   PlatformFile? _selectedFile;
   bool _isFileLoading = false;
@@ -20,6 +25,9 @@ class ReaderProvider extends ChangeNotifier {
   String _translatedText = '';
   bool _isTranslating = false;
   String? _translationError;
+
+  // Interaction Mode (default to selection for desktop web usability)
+  ReaderInteractionMode _interactionMode = ReaderInteractionMode.selection;
 
   // Translation configuration
   String _targetLanguage = 'id'; // default: Indonesian
@@ -44,10 +52,18 @@ class ReaderProvider extends ChangeNotifier {
   bool get isTranslating => _isTranslating;
   String? get translationError => _translationError;
 
+  ReaderInteractionMode get interactionMode => _interactionMode;
   String get targetLanguage => _targetLanguage;
   double get translationFontSize => _translationFontSize;
   ReaderTheme get currentTheme => _currentTheme;
   PdfPageFilter get pdfFilter => _pdfFilter;
+
+  void toggleInteractionMode() {
+    _interactionMode = _interactionMode == ReaderInteractionMode.selection
+        ? ReaderInteractionMode.pan
+        : ReaderInteractionMode.selection;
+    notifyListeners();
+  }
 
   // Target languages list
   final Map<String, String> supportedLanguages = {
@@ -107,6 +123,14 @@ class ReaderProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Reset translation state
+  void clearTranslation() {
+    _originalText = '';
+    _translatedText = '';
+    _translationError = null;
+    notifyListeners();
+  }
+
   /// Change theme
   void changeTheme(ReaderTheme theme) {
     _currentTheme = theme;
@@ -153,24 +177,23 @@ class ReaderProvider extends ChangeNotifier {
     }
   }
 
-  /// Pastes text from clipboard and triggers translation
-  Future<void> pasteAndTranslate() async {
-    _isTranslating = true;
-    _translationError = null;
-    notifyListeners();
-
+  /// Checks clipboard contents silently and auto-translates if new text is copied
+  Future<void> checkClipboardAndTranslate() async {
+    if (_isTranslating) return;
     try {
       final clipboardData = await Clipboard.getData(Clipboard.kTextPlain);
-      final text = clipboardData?.text;
+      final text = clipboardData?.text?.trim();
 
-      if (text != null && text.trim().isNotEmpty) {
+      if (text != null && text.isNotEmpty && text != _originalText) {
+        _isTranslating = true;
+        _translationError = null;
+        notifyListeners();
+
         _originalText = text;
         _translatedText = await TranslationService.translate(text, _targetLanguage);
-      } else {
-        _translationError = 'Clipboard kosong atau tidak berisi teks valid.';
       }
-    } catch (e) {
-      _translationError = 'Gagal menerjemahkan: ${e.toString().replaceAll('Exception:', '')}';
+    } catch (_) {
+      // Silently ignore clipboard access errors (e.g. browser permission issues)
     } finally {
       _isTranslating = false;
       notifyListeners();
