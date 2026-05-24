@@ -55,7 +55,8 @@ class _TranslationPanelState extends State<TranslationPanel> {
     final hasContent =
         provider.translatedText.isNotEmpty ||
         provider.isTranslating ||
-        provider.translationError != null;
+        provider.translationError != null ||
+        provider.selectedText.isNotEmpty;
 
     return AnimatedSize(
       duration: const Duration(milliseconds: 250),
@@ -69,7 +70,7 @@ class _TranslationPanelState extends State<TranslationPanel> {
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(theme.isDark ? 0.35 : 0.08),
+                    color: Colors.black.withAlpha(theme.isDark ? 89 : 20),
                     blurRadius: 10,
                     spreadRadius: 1,
                     offset: const Offset(0, -2),
@@ -98,7 +99,7 @@ class _TranslationPanelState extends State<TranslationPanel> {
                                 icon: const Icon(Icons.copy_rounded, size: 16),
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
-                                color: theme.textColor.withOpacity(0.55),
+                                color: theme.textColor.withAlpha(140),
                                 tooltip: 'Salin Terjemahan',
                                 onPressed: () =>
                                     _copyToClipboard(context, provider.translatedText),
@@ -114,7 +115,7 @@ class _TranslationPanelState extends State<TranslationPanel> {
                                 constraints: const BoxConstraints(),
                                 color: _isEditing
                                     ? theme.accentColor
-                                    : theme.textColor.withOpacity(0.55),
+                                    : theme.textColor.withAlpha(140),
                                 tooltip: _isEditing
                                     ? 'Selesai Edit & Terjemahkan'
                                     : 'Edit Teks Asli',
@@ -135,23 +136,24 @@ class _TranslationPanelState extends State<TranslationPanel> {
                                 },
                               ),
                               const SizedBox(width: 14),
+
+                              // Close/Dismiss button
+                              IconButton(
+                                icon: const Icon(Icons.close_rounded, size: 16),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                color: theme.textColor.withAlpha(140),
+                                tooltip: 'Tutup',
+                                onPressed: () {
+                                  if (_isEditing) {
+                                    setState(() {
+                                      _isEditing = false;
+                                    });
+                                  }
+                                  provider.clearTranslation();
+                                },
+                              ),
                             ],
-                            // Close/Dismiss button
-                            IconButton(
-                              icon: const Icon(Icons.close_rounded, size: 16),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              color: theme.textColor.withOpacity(0.55),
-                              tooltip: 'Tutup',
-                              onPressed: () {
-                                if (_isEditing) {
-                                  setState(() {
-                                    _isEditing = false;
-                                  });
-                                }
-                                provider.clearTranslation();
-                              },
-                            ),
                           ],
                         ),
                       ],
@@ -188,7 +190,7 @@ class _TranslationPanelState extends State<TranslationPanel> {
                 style: TextStyle(
                   fontSize: 13,
                   fontStyle: FontStyle.italic,
-                  color: theme.textColor.withOpacity(0.65),
+                  color: theme.textColor.withAlpha(166),
                 ),
               ),
             ],
@@ -220,7 +222,7 @@ class _TranslationPanelState extends State<TranslationPanel> {
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.bold,
-              color: theme.textColor.withOpacity(0.5),
+              color: theme.textColor.withAlpha(140),
             ),
           ),
           const SizedBox(height: 6),
@@ -239,7 +241,7 @@ class _TranslationPanelState extends State<TranslationPanel> {
               decoration: InputDecoration(
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: theme.accentColor.withOpacity(0.5)),
+                  borderSide: BorderSide(color: theme.accentColor.withAlpha(128)),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -247,9 +249,60 @@ class _TranslationPanelState extends State<TranslationPanel> {
                 ),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 hintText: 'Edit teks asli di sini...',
-                hintStyle: TextStyle(color: theme.textColor.withOpacity(0.35)),
+                hintStyle: TextStyle(color: theme.textColor.withAlpha(89)),
               ),
               autofocus: true,
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (provider.translatedText.isEmpty && provider.selectedText.isNotEmpty) {
+      return Row(
+        mainAxisSize: MainAxisSize.max,
+        children: [
+          Expanded(
+            flex: 1,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: theme.accentColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                elevation: 1,
+              ),
+              icon: const Icon(Icons.g_translate_rounded, size: 18),
+              label: const Text(
+                'Terjemahkan Kalimat',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              onPressed: () {
+                provider.translateText(provider.selectedText);
+              },
+            ),
+          ),
+          // Close/Dismiss button
+          Container(
+            margin: const EdgeInsets.only(left: 4),
+            decoration: BoxDecoration(
+              color: theme.textColor.withAlpha(140),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.close_rounded, size: 16),
+              constraints: const BoxConstraints(),
+              color: Colors.white,
+              tooltip: 'Tutup',
+
+              onPressed: () {
+                if (_isEditing) {
+                  setState(() {
+                    _isEditing = false;
+                  });
+                }
+                provider.clearTranslation();
+              },
             ),
           ),
         ],

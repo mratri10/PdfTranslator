@@ -4,20 +4,31 @@ import 'package:provider/provider.dart';
 import 'package:pdf_translator/models/reader_theme.dart';
 import 'package:pdf_translator/providers/reader_provider.dart';
 import 'package:pdf_translator/widgets/pdf_view_pane.dart';
+import 'package:pdf_translator/widgets/permission_gateway.dart';
 import 'package:pdf_translator/widgets/theme_selector.dart';
 import 'package:pdf_translator/widgets/translation_panel.dart';
 import 'package:pdf_translator/services/book_history_service.dart';
 import 'package:pdf_translator/services/book_storage_service.dart';
+import 'package:pdf_translator/services/analytics_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await BookHistoryService.init();
-  runApp(
-    ChangeNotifierProvider(
-      create: (_) => ReaderProvider(),
-      child: const AuraApp(),
-    ),
-  );
+
+  // Wrap startup services in try-catch to prevent any startup crash
+  try {
+    await BookHistoryService.init();
+  } catch (e, stack) {
+    debugPrint('Failed to initialize BookHistoryService: $e\n$stack');
+  }
+
+  try {
+    await AnalyticsService.init();
+    await AnalyticsService.logAppLaunch();
+  } catch (e, stack) {
+    debugPrint('Failed to initialize AnalyticsService: $e\n$stack');
+  }
+
+  runApp(ChangeNotifierProvider(create: (_) => ReaderProvider(), child: const AuraApp()));
 }
 
 class AuraApp extends StatelessWidget {
@@ -32,7 +43,9 @@ class AuraApp extends StatelessWidget {
       title: 'Aura PDF Translator',
       debugShowCheckedModeBanner: false,
       theme: readerTheme.toThemeData(),
-      home: const HomeScreen(),
+      // PermissionGateway runs before HomeScreen is shown.
+      // On web it is transparent (no-op); on Android it requests storage access.
+      home: const PermissionGateway(child: HomeScreen()),
     );
   }
 }
@@ -73,12 +86,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final file = provider.selectedFile;
     final theme = provider.currentTheme;
 
+    final hasTranslation =
+        provider.translatedText.isNotEmpty ||
+        provider.isTranslating ||
+        provider.translationError != null ||
+        provider.selectedText.isNotEmpty;
+
     // Show loading overlay when file picker or processing is active
     return PopScope(
       canPop: file == null,
       onPopInvokedWithResult: (bool didPop, Object? result) {
         if (didPop) return;
-        provider.clearFile();
+        if (hasTranslation) {
+          provider.clearTranslation();
+        } else if (file != null) {
+          provider.clearFile();
+        }
       },
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
@@ -97,12 +120,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
             if (provider.isFileLoading)
               Container(
-                color: Colors.black.withOpacity(0.5),
+                color: Colors.black.withAlpha(128),
                 child: Center(
                   child: Card(
                     color: theme.surfaceColor,
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24.0,
+                        vertical: 16.0,
+                      ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -131,7 +157,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   // --- Reading State AppBar ---
   PreferredSizeWidget _buildReadingAppBar(
-      BuildContext context, ReaderProvider provider, ReaderTheme theme) {
+    BuildContext context,
+    ReaderProvider provider,
+    ReaderTheme theme,
+  ) {
     final fileName = provider.selectedFile?.name ?? 'Dokumen';
 
     return AppBar(
@@ -144,19 +173,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
       title: Row(
         children: [
-          Icon(
-            Icons.picture_as_pdf_rounded,
-            color: theme.accentColor,
-            size: 22,
-          ),
+          Icon(Icons.picture_as_pdf_rounded, color: theme.accentColor, size: 22),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               fileName,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -191,7 +213,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   // --- Landing Screen (FR-01) ---
   Widget _buildLandingScreen(
-      BuildContext context, ReaderProvider provider, ReaderTheme theme) {
+    BuildContext context,
+    ReaderProvider provider,
+    ReaderTheme theme,
+  ) {
     return SafeArea(
       child: Center(
         child: SingleChildScrollView(
@@ -207,7 +232,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: theme.accentColor.withOpacity(0.15),
+                      color: theme.accentColor.withAlpha(38),
                       blurRadius: 20,
                       spreadRadius: 2,
                     ),
@@ -235,7 +260,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14,
-                  color: theme.textColor.withOpacity(0.65),
+                  color: theme.textColor.withAlpha(166),
                   height: 1.4,
                 ),
               ),
@@ -252,13 +277,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     color: theme.surfaceColor,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: theme.accentColor.withOpacity(0.4),
+                      color: theme.accentColor.withAlpha(102),
                       width: 2,
                       style: BorderStyle.solid,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(theme.isDark ? 0.2 : 0.05),
+                        color: Colors.black.withAlpha(theme.isDark ? 51 : 13),
                         blurRadius: 15,
                         offset: const Offset(0, 4),
                       ),
@@ -293,7 +318,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               'Mendukung format dokumen .pdf',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: theme.textColor.withOpacity(0.5),
+                                color: theme.textColor.withAlpha(128),
                               ),
                             ),
                           ],
@@ -309,16 +334,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: Colors.redAccent.withOpacity(0.1),
+                    color: Colors.redAccent.withAlpha(26),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                    border: Border.all(color: Colors.redAccent.withAlpha(77)),
                   ),
                   child: Text(
                     provider.fileError!,
-                    style: const TextStyle(
-                      color: Colors.redAccent,
-                      fontSize: 13,
-                    ),
+                    style: const TextStyle(color: Colors.redAccent, fontSize: 13),
                   ),
                 ),
               ],
@@ -337,7 +359,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
                     side: BorderSide(
-                      color: theme.textColor.withOpacity(0.12),
+                      color: theme.textColor.withAlpha(31),
                       width: 1,
                     ),
                   ),
@@ -367,7 +389,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
-                                  color: theme.textColor.withOpacity(0.85),
+                                  color: theme.textColor.withAlpha(217),
                                 ),
                               ),
                             ),
@@ -375,7 +397,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           ],
                         ),
                         const SizedBox(height: 14),
-                        Divider(color: theme.textColor.withOpacity(0.1), height: 1),
+                        Divider(color: theme.textColor.withAlpha(26), height: 1),
                         const SizedBox(height: 14),
 
                         // 2. Language selection
@@ -387,7 +409,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
-                                  color: theme.textColor.withOpacity(0.85),
+                                  color: theme.textColor.withAlpha(217),
                                 ),
                               ),
                             ),
@@ -397,7 +419,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               underline: const SizedBox(),
                               icon: Icon(
                                 Icons.arrow_drop_down_rounded,
-                                color: theme.textColor.withOpacity(0.7),
+                                color: theme.textColor.withAlpha(179),
                               ),
                               style: TextStyle(
                                 color: theme.accentColor,
@@ -419,7 +441,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           ],
                         ),
                         const SizedBox(height: 14),
-                        Divider(color: theme.textColor.withOpacity(0.1), height: 1),
+                        Divider(color: theme.textColor.withAlpha(26), height: 1),
                         const SizedBox(height: 14),
 
                         // 3. Font Size selection
@@ -431,19 +453,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
-                                  color: theme.textColor.withOpacity(0.85),
+                                  color: theme.textColor.withAlpha(217),
                                 ),
                               ),
                             ),
                             Row(
                               children: [
                                 IconButton(
-                                  icon: const Icon(Icons.remove_circle_outline_rounded, size: 18),
+                                  icon: const Icon(
+                                    Icons.remove_circle_outline_rounded,
+                                    size: 18,
+                                  ),
                                   padding: EdgeInsets.zero,
                                   constraints: const BoxConstraints(),
-                                  color: theme.textColor.withOpacity(0.7),
+                                  color: theme.textColor.withAlpha(179),
                                   onPressed: provider.translationFontSize > 12.0
-                                      ? () => provider.changeFontSize(provider.translationFontSize - 2.0)
+                                      ? () => provider.changeFontSize(
+                                          provider.translationFontSize - 2.0,
+                                        )
                                       : null,
                                 ),
                                 Padding(
@@ -458,12 +485,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   ),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.add_circle_outline_rounded, size: 18),
+                                  icon: const Icon(
+                                    Icons.add_circle_outline_rounded,
+                                    size: 18,
+                                  ),
                                   padding: EdgeInsets.zero,
                                   constraints: const BoxConstraints(),
-                                  color: theme.textColor.withOpacity(0.7),
+                                  color: theme.textColor.withAlpha(179),
                                   onPressed: provider.translationFontSize < 28.0
-                                      ? () => provider.changeFontSize(provider.translationFontSize + 2.0)
+                                      ? () => provider.changeFontSize(
+                                          provider.translationFontSize + 2.0,
+                                        )
                                       : null,
                                 ),
                               ],
@@ -484,15 +516,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   // --- Reading Screen (FR-02 & FR-03) ---
   Widget _buildReadingScreen(
-      BuildContext context, ReaderProvider provider, ReaderTheme theme) {
+    BuildContext context,
+    ReaderProvider provider,
+    ReaderTheme theme,
+  ) {
     return SafeArea(
       top: false,
       child: Column(
         children: [
           // Main PDF view pane
-          const Expanded(
-            child: PdfViewPane(),
-          ),
+          const Expanded(child: PdfViewPane()),
           // Persistent translation bottom bar
           const TranslationPanel(),
         ],
@@ -501,7 +534,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   // --- Local Book Shelf Widget ---
-  Widget _buildLocalBookShelf(BuildContext context, ReaderProvider provider, ReaderTheme theme) {
+  Widget _buildLocalBookShelf(
+    BuildContext context,
+    ReaderProvider provider,
+    ReaderTheme theme,
+  ) {
     if (kIsWeb) return const SizedBox.shrink();
 
     return Container(
@@ -519,7 +556,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
-                  color: theme.textColor.withOpacity(0.55),
+                  color: theme.textColor.withAlpha(140),
                   letterSpacing: 1.0,
                 ),
               ),
@@ -541,13 +578,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               elevation: 0,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: theme.textColor.withOpacity(0.12)),
+                side: BorderSide(color: theme.textColor.withAlpha(31)),
               ),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   children: [
-                    Icon(Icons.folder_open_outlined, size: 36, color: theme.textColor.withOpacity(0.5)),
+                    Icon(
+                      Icons.folder_open_outlined,
+                      size: 36,
+                      color: theme.textColor.withAlpha(128),
+                    ),
                     const SizedBox(height: 10),
                     Text(
                       'Folder "book-pdf" belum aktif',
@@ -563,7 +604,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 12,
-                        color: theme.textColor.withOpacity(0.6),
+                        color: theme.textColor.withAlpha(153),
                         height: 1.3,
                       ),
                     ),
@@ -591,13 +632,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               elevation: 0,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: theme.textColor.withOpacity(0.12)),
+                side: BorderSide(color: theme.textColor.withAlpha(31)),
               ),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   children: [
-                    Icon(Icons.library_books_outlined, size: 36, color: theme.textColor.withOpacity(0.5)),
+                    Icon(
+                      Icons.library_books_outlined,
+                      size: 36,
+                      color: theme.textColor.withAlpha(128),
+                    ),
                     const SizedBox(height: 10),
                     Text(
                       'Belum ada buku',
@@ -617,7 +662,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 11,
-                            color: theme.textColor.withOpacity(0.6),
+                            color: theme.textColor.withAlpha(153),
                             height: 1.4,
                           ),
                         );
@@ -663,11 +708,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       decoration: BoxDecoration(
                         color: theme.surfaceColor,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: theme.textColor.withOpacity(0.08)),
+                        border: Border.all(color: theme.textColor.withAlpha(20)),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.picture_as_pdf_rounded, color: Colors.redAccent, size: 24),
+                          const Icon(
+                            Icons.picture_as_pdf_rounded,
+                            color: Colors.redAccent,
+                            size: 24,
+                          ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
@@ -685,16 +734,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  lastPage > 1 ? 'Terakhir dibaca: Hal $lastPage' : 'Belum pernah dibaca',
+                                  lastPage > 1
+                                      ? 'Terakhir dibaca: Hal $lastPage'
+                                      : 'Belum pernah dibaca',
                                   style: TextStyle(
                                     fontSize: 11,
-                                    color: theme.textColor.withOpacity(0.5),
+                                    color: theme.textColor.withAlpha(128),
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                          Icon(Icons.chevron_right_rounded, color: theme.textColor.withOpacity(0.4)),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            color: theme.textColor.withAlpha(102),
+                          ),
                         ],
                       ),
                     ),

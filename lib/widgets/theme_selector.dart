@@ -34,13 +34,13 @@ class ThemeSelector extends StatelessWidget {
                   border: Border.all(
                     color: isSelected 
                         ? theme.accentColor 
-                        : theme.textColor.withOpacity(0.3),
+                        : theme.textColor.withAlpha(77),
                     width: isSelected ? 2.5 : 1.0,
                   ),
                   boxShadow: isSelected
                       ? [
                           BoxShadow(
-                            color: theme.accentColor.withOpacity(0.3),
+                            color: theme.accentColor.withAlpha(77),
                             blurRadius: 6,
                             spreadRadius: 1,
                             offset: const Offset(0, 2),

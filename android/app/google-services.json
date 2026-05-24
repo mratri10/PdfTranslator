@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1234567890",
+    "project_id": "atrialfa-1dc01",
+    "storage_bucket": "atrialfa-1dc01.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1234567890:android:abcdef1234567890",
+        "android_client_info": {
+          "package_name": "com.atri.pdf"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyFakeKeyForCompilingOnly_abcdef"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "status": 1
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
