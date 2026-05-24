@@ -467,7 +467,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   padding: EdgeInsets.zero,
                                   constraints: const BoxConstraints(),
                                   color: theme.textColor.withAlpha(179),
-                                  onPressed: provider.translationFontSize > 12.0
+                                  onPressed: provider.translationFontSize > 8.0
                                       ? () => provider.changeFontSize(
                                           provider.translationFontSize - 2.0,
                                         )
@@ -492,7 +492,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   padding: EdgeInsets.zero,
                                   constraints: const BoxConstraints(),
                                   color: theme.textColor.withAlpha(179),
-                                  onPressed: provider.translationFontSize < 28.0
+                                  onPressed: provider.translationFontSize < 16.0
                                       ? () => provider.changeFontSize(
                                           provider.translationFontSize + 2.0,
                                         )

@@ -30,7 +30,7 @@ class ReaderProvider extends ChangeNotifier {
 
   // Translation configuration
   String _targetLanguage = 'id'; // default: Indonesian
-  double _translationFontSize = 16.0;
+  double _translationFontSize = 12.0;
 
   // Selected Theme (default is Sepia Paper)
   ReaderTheme _currentTheme = ReaderTheme.allThemes.firstWhere(
@@ -283,7 +283,7 @@ class ReaderProvider extends ChangeNotifier {
 
   /// Update font size for the translation box
   void changeFontSize(double size) {
-    if (size >= 12.0 && size <= 28.0) {
+    if (size >= 8.0 && size <= 16.0) {
       _translationFontSize = size;
       notifyListeners();
     }
