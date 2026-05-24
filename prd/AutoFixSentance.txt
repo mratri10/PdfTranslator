@@ -1,0 +1,92 @@
+Ya, hal tersebut sangat bisa diperbaiki secara otomatis dan memang merupakan fitur wajib untuk aplikasi pembaca PDF.
+
+Masalah yang Anda hadapi disebabkan oleh sifat asli format PDF. PDF tidak menyimpan teks sebagai "paragraf", melainkan sebagai baris-baris teks dengan posisi koordinat. Akibatnya, saat pengguna menyeleksi (drag) teks multi-baris, PDF viewer akan menyisipkan karakter newline (\n atau enter) di setiap ujung baris. Mesin penerjemah akan membaca \n tersebut sebagai jeda atau akhir kalimat, sehingga hasil terjemahannya menjadi kacau.
+
+Berikut adalah draft Product Requirements Document (PRD) untuk fitur pembersihan teks ini yang bisa Anda serahkan kepada tim developer Anda (atau untuk panduan Anda sendiri).
+
+PRD: Fitur "Smart Text Sanitizer" (Penggabung Kalimat PDF Otomatis)
+1. Latar Belakang & Masalah (Problem Statement)
+Saat pengguna melakukan blok/drag teks multi-baris pada dokumen PDF, teks yang ditangkap mengandung jeda baris (hard line breaks / \n) yang tidak semestinya.
+Contoh kasus (berdasarkan screenshot):
+
+Teks yang ditangkap PDF: "mengalami penyumbatan pada arteri utama dan berada di\nrisiko langsung terkena serangan jantung."
+
+Dampak: API Penerjemah menerjemahkan dua baris tersebut secara terpisah dan kehilangan konteks tata bahasa yang benar.
+
+2. Tujuan (Objective)
+Memastikan setiap teks yang diseleksi oleh pengguna digabungkan menjadi kalimat yang utuh dan mengalir (seamless) sebelum dikirim ke mesin penerjemah, kecuali jika teks tersebut memang terpisah oleh paragraf baru.
+
+3. Alur Pengguna (User Flow)
+Pengguna menyeleksi teks di PDF viewer.
+
+Pengguna menekan tombol "Terjemahkan Kalimat" di Translation Panel.
+
+[Proses Background]: Sistem mendeteksi teks asli, menghapus karakter enter (\n) yang tidak perlu, dan menyambungkan kata/kalimat.
+
+Sistem mengirimkan teks yang sudah rapi ke API Terjemahan.
+
+Jika pengguna menekan tombol "Edit Teks Asli" (ikon pensil), teks yang muncul di TextField adalah teks yang sudah dirapikan, bukan teks mentah yang patah-patah.
+
+4. Kriteria Penerimaan (Acceptance Criteria / Logic Rules)
+Developer harus membuat sebuah fungsi utility (misalnya sanitizePdfText(String rawText)) dengan aturan logika (Regex) berikut:
+
+Rule 1 (Menghapus Jeda Baris Tunggal):
+Semua jeda baris tunggal (\n atau \r\n) yang berada di tengah kalimat (tidak diakhiri tanda titik/paragraf baru) harus diubah menjadi satu spasi.
+
+Rule 2 (Menyatukan Kata yang Terpotong Tanda Hubung):
+Jika ada kata yang terpotong di akhir baris dengan tanda hubung (contoh: "menga-" lalu pindah baris "lami"), tanda hubung dan jeda baris tersebut harus dihapus sama sekali sehingga menjadi satu kata "mengalami".
+
+Rule 3 (Mempertahankan Paragraf):
+Jika terdapat jeda baris ganda (\n\n), ini menandakan pergantian paragraf sungguhan. Sistem tidak boleh menggabungkannya menjadi spasi. Biarkan tetap sebagai enter.
+
+Rule 4 (Pembersihan Spasi Ganda):
+Setelah Rule 1 dan 2 dijalankan, sistem harus membersihkan spasi ganda (dua spasi berurutan) menjadi satu spasi agar rapi.
+
+5. Panduan Implementasi Teknis (Untuk Developer)
+Berdasarkan file translation_panel.dart yang Anda lampirkan, perubahan ini harus dilakukan sebelum pemanggilan fungsi provider.translateText().
+
+Saran implementasi logika Sanitizer menggunakan Dart:
+
+Dart
+// Buat fungsi ini di dalam ReaderProvider atau file utils terpisah
+String sanitizePdfText(String rawText) {
+  if (rawText.isEmpty) return rawText;
+
+  String text = rawText;
+
+  // 1. Standardisasi line break (berjaga-jaga dari format Windows \r\n)
+  text = text.replaceAll('\r\n', '\n');
+
+  // 2. Gabungkan kata yang terpotong tanda hubung di akhir baris
+  // Contoh: "menga-\nlami" -> "mengalami"
+  text = text.replaceAll(RegExp(r'-\s*\n\s*'), '');
+
+  // 3. Ganti single newline (\n) dengan spasi
+  // Regex ini mencari \n tunggal (tidak berdampingan dengan \n lain)
+  text = text.replaceAll(RegExp(r'(?<!\n)\n(?!\n)'), ' ');
+
+  // 4. Bersihkan spasi ganda yang mungkin terjadi akibat proses di atas
+  text = text.replaceAll(RegExp(r'\s{2,}'), ' ');
+
+  return text.trim();
+}
+Penerapan di translation_panel.dart (Baris 234):
+Ubah kode asal:
+
+Dart
+onPressed: () {
+  provider.translateText(provider.selectedText);
+},
+Menjadi:
+
+Dart
+onPressed: () {
+  // Bersihkan teks sebelum dikirim untuk diterjemahkan
+  final cleanText = sanitizePdfText(provider.selectedText);
+  
+  // Update state original text agar di TextField "Edit" juga rapi
+  provider.setSelectedText(cleanText); 
+  
+  provider.translateText(cleanText);
+},
+Dengan menerapkan PRD dan logika di atas, masalah teks terputus akan langsung hilang, dan kualitas terjemahan di aplikasi Lingevo+ Anda akan meningkat drastis!

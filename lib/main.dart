@@ -28,11 +28,11 @@ void main() async {
     debugPrint('Failed to initialize AnalyticsService: $e\n$stack');
   }
 
-  runApp(ChangeNotifierProvider(create: (_) => ReaderProvider(), child: const AuraApp()));
+  runApp(ChangeNotifierProvider(create: (_) => ReaderProvider(), child: const LingevoApp()));
 }
 
-class AuraApp extends StatelessWidget {
-  const AuraApp({super.key});
+class LingevoApp extends StatelessWidget {
+  const LingevoApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +40,7 @@ class AuraApp extends StatelessWidget {
     final readerTheme = Provider.of<ReaderProvider>(context).currentTheme;
 
     return MaterialApp(
-      title: 'Aura PDF Translator',
+      title: 'Lingevo+',
       debugShowCheckedModeBanner: false,
       theme: readerTheme.toThemeData(),
       // PermissionGateway runs before HomeScreen is shown.
@@ -246,7 +246,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
               const SizedBox(height: 24),
               Text(
-                'AURA TRANSLATOR',
+                'LINGEVO+',
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w900,
@@ -522,12 +522,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   ) {
     return SafeArea(
       top: false,
-      child: Column(
+      child: Stack(
         children: [
           // Main PDF view pane
-          const Expanded(child: PdfViewPane()),
+          const Positioned.fill(child: PdfViewPane()),
           // Persistent translation bottom bar
-          const TranslationPanel(),
+          const Align(
+            alignment: Alignment.bottomCenter,
+            child: TranslationPanel(),
+          ),
         ],
       ),
     );

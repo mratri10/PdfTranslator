@@ -231,9 +231,9 @@ class ReaderProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Update active text selection
+  /// Update active text selection with automated sanitization
   void setSelectedText(String text) {
-    _selectedText = text;
+    _selectedText = sanitizePdfText(text);
     notifyListeners();
   }
 
@@ -301,12 +301,13 @@ class ReaderProvider extends ChangeNotifier {
         _translationError = null;
         notifyListeners();
 
-        _originalText = text;
+        final cleanText = sanitizePdfText(text);
+        _originalText = cleanText;
         AnalyticsService.logTranslation(
-          textLength: text.length,
+          textLength: cleanText.length,
           targetLang: _targetLanguage,
         );
-        _translatedText = await TranslationService.translate(text, _targetLanguage);
+        _translatedText = await TranslationService.translate(cleanText, _targetLanguage);
       }
     } catch (e, stack) {
       // Silently ignore clipboard access errors, but log to analytics to monitor
@@ -429,8 +430,30 @@ class ReaderProvider extends ChangeNotifier {
           0.0,
         ];
       case PdfPageFilter.none:
-      default:
         return null;
     }
+  }
+
+  /// Smart PDF Text Sanitizer to clean up line breaks and hyphens
+  String sanitizePdfText(String rawText) {
+    if (rawText.isEmpty) return rawText;
+
+    String text = rawText;
+
+    // 1. Standardisasi line break (berjaga-jaga dari format Windows \r\n)
+    text = text.replaceAll('\r\n', '\n');
+
+    // 2. Gabungkan kata yang terpotong tanda hubung di akhir baris
+    // Contoh: "menga-\nlami" -> "mengalami"
+    text = text.replaceAll(RegExp(r'-\s*\n\s*'), '');
+
+    // 3. Ganti single newline (\n) dengan spasi
+    // Regex ini mencari \n tunggal (tidak berdampingan dengan \n lain)
+    text = text.replaceAll(RegExp(r'(?<!\n)\n(?!\n)'), ' ');
+
+    // 4. Bersihkan spasi ganda yang mungkin terjadi akibat proses di atas
+    text = text.replaceAll(RegExp(r'\s{2,}'), ' ');
+
+    return text.trim();
   }
 }

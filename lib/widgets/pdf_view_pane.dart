@@ -266,11 +266,19 @@ class _PdfViewPaneState extends State<PdfViewPane> {
       );
     }
 
+    final hasTranslation = provider.translatedText.isNotEmpty ||
+        provider.isTranslating ||
+        provider.translationError != null ||
+        provider.selectedText.isNotEmpty;
+
     // Wrap the viewer in a ColorFiltered container if a matrix filter is active
     return ClipRect(
-      child: matrix != null
-          ? ColorFiltered(colorFilter: ColorFilter.matrix(matrix), child: viewer)
-          : viewer,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: hasTranslation ? 110.0 : 0.0),
+        child: matrix != null
+            ? ColorFiltered(colorFilter: ColorFilter.matrix(matrix), child: viewer)
+            : viewer,
+      ),
     );
   }
 }

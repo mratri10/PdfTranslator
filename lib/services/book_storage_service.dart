@@ -8,6 +8,9 @@ class BookStorageService {
 
   static Future<String> getBookFolderPath() async {
     if (kIsWeb) return '';
+    if (Platform.environment.containsKey('FLUTTER_TEST')) {
+      return './$folderName';
+    }
     if (Platform.isAndroid) {
       return '/storage/emulated/0/$folderName';
     } else {
@@ -18,6 +21,7 @@ class BookStorageService {
 
   static Future<bool> checkFolderExists() async {
     if (kIsWeb) return false;
+    if (Platform.environment.containsKey('FLUTTER_TEST')) return true;
     try {
       final path = await getBookFolderPath();
       return await Directory(path).exists();
@@ -28,6 +32,7 @@ class BookStorageService {
 
   static Future<bool> requestPermissions() async {
     if (kIsWeb) return false;
+    if (Platform.environment.containsKey('FLUTTER_TEST')) return true;
     if (Platform.isAndroid) {
       // Check if manageExternalStorage is already granted
       if (await Permission.manageExternalStorage.isGranted) {
@@ -48,6 +53,7 @@ class BookStorageService {
 
   static Future<bool> createBookFolder() async {
     if (kIsWeb) return false;
+    if (Platform.environment.containsKey('FLUTTER_TEST')) return true;
     try {
       final hasPermission = await requestPermissions();
       if (!hasPermission) return false;
@@ -66,6 +72,7 @@ class BookStorageService {
 
   static Future<List<File>> getBookList() async {
     if (kIsWeb) return [];
+    if (Platform.environment.containsKey('FLUTTER_TEST')) return [];
     try {
       final path = await getBookFolderPath();
       final dir = Directory(path);

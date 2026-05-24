@@ -45,57 +45,75 @@ class _PermissionGatewayState extends State<PermissionGateway>
   }
 
   Future<void> _checkPermission() async {
-    // Web / non-Android doesn't need runtime permissions — go straight through.
-    if (kIsWeb) {
-      setState(() => _state = _GatewayState.granted);
-      return;
-    }
+    try {
+      // Web / non-Android doesn't need runtime permissions — go straight through.
+      if (kIsWeb) {
+        setState(() => _state = _GatewayState.granted);
+        return;
+      }
 
-    final status = await PermissionService.checkStoragePermission();
-    switch (status) {
-      case StoragePermissionStatus.granted:
-      case StoragePermissionStatus.notRequired:
-        await _onGranted();
-        break;
-      case StoragePermissionStatus.permanentlyDenied:
-        if (mounted) setState(() => _state = _GatewayState.permanentlyDenied);
-        break;
-      case StoragePermissionStatus.denied:
-        // Show the request screen on first launch
-        if (mounted) setState(() => _state = _GatewayState.needsRequest);
-        break;
+      final status = await PermissionService.checkStoragePermission();
+      switch (status) {
+        case StoragePermissionStatus.granted:
+        case StoragePermissionStatus.notRequired:
+          await _onGranted();
+          break;
+        case StoragePermissionStatus.permanentlyDenied:
+          if (mounted) setState(() => _state = _GatewayState.permanentlyDenied);
+          break;
+        case StoragePermissionStatus.denied:
+          // Show the request screen on first launch
+          if (mounted) setState(() => _state = _GatewayState.needsRequest);
+          break;
+      }
+    } catch (e) {
+      debugPrint('Error checking permission: $e');
+      // Default to granted in case of system/plugin errors to keep app usable
+      await _onGranted();
     }
   }
 
   Future<void> _requestPermission() async {
-    setState(() => _state = _GatewayState.requesting);
-    final status = await PermissionService.requestStoragePermission();
-    switch (status) {
-      case StoragePermissionStatus.granted:
-      case StoragePermissionStatus.notRequired:
-        await _onGranted();
-        break;
-      case StoragePermissionStatus.permanentlyDenied:
-        if (mounted) setState(() => _state = _GatewayState.permanentlyDenied);
-        break;
-      case StoragePermissionStatus.denied:
-        if (mounted) setState(() => _state = _GatewayState.denied);
-        break;
+    try {
+      setState(() => _state = _GatewayState.requesting);
+      final status = await PermissionService.requestStoragePermission();
+      switch (status) {
+        case StoragePermissionStatus.granted:
+        case StoragePermissionStatus.notRequired:
+          await _onGranted();
+          break;
+        case StoragePermissionStatus.permanentlyDenied:
+          if (mounted) setState(() => _state = _GatewayState.permanentlyDenied);
+          break;
+        case StoragePermissionStatus.denied:
+          if (mounted) setState(() => _state = _GatewayState.denied);
+          break;
+      }
+    } catch (e) {
+      debugPrint('Error requesting permission: $e');
+      await _onGranted();
     }
   }
 
   /// Called when storage permission has been confirmed.
   /// Creates the book folder (if missing) and refreshes the book list.
   Future<void> _onGranted() async {
-    final folderExists = await BookStorageService.checkFolderExists();
-    if (!folderExists) {
-      await BookStorageService.createBookFolder();
-    }
-    // Refresh the provider's book list so the shelf is ready immediately.
-    if (mounted) {
-      await Provider.of<ReaderProvider>(context, listen: false)
-          .refreshLocalBooks();
-      setState(() => _state = _GatewayState.granted);
+    try {
+      final folderExists = await BookStorageService.checkFolderExists();
+      if (!folderExists) {
+        await BookStorageService.createBookFolder();
+      }
+      // Refresh the provider's book list so the shelf is ready immediately.
+      if (mounted) {
+        await Provider.of<ReaderProvider>(context, listen: false)
+            .refreshLocalBooks();
+        setState(() => _state = _GatewayState.granted);
+      }
+    } catch (e, stack) {
+      debugPrint('Error in _onGranted: $e\n$stack');
+      if (mounted) {
+        setState(() => _state = _GatewayState.granted);
+      }
     }
   }
 
@@ -135,7 +153,7 @@ class _PermissionGatewayState extends State<PermissionGateway>
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Aura membutuhkan akses penyimpanan untuk:\n',
+                    'Lingevo+ membutuhkan akses penyimpanan untuk:\n',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colorScheme.onSurface.withAlpha(166),

@@ -58,6 +58,13 @@ class _TranslationPanelState extends State<TranslationPanel> {
         provider.translationError != null ||
         provider.selectedText.isNotEmpty;
 
+    final screenHeight = MediaQuery.of(context).size.height;
+    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    final maxContentHeight = (screenHeight - keyboardHeight - 120).clamp(
+      100.0,
+      screenHeight * 0.4,
+    );
+
     return AnimatedSize(
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeInOut,
@@ -160,7 +167,13 @@ class _TranslationPanelState extends State<TranslationPanel> {
                     ),
                     const SizedBox(height: 10),
                     // Translation result content
-                    _buildTranslationContent(provider, theme),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(maxHeight: maxContentHeight),
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: _buildTranslationContent(provider, theme),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -278,7 +291,9 @@ class _TranslationPanelState extends State<TranslationPanel> {
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
               onPressed: () {
-                provider.translateText(provider.selectedText);
+                final cleanText = provider.sanitizePdfText(provider.selectedText);
+                provider.setSelectedText(cleanText);
+                provider.translateText(cleanText);
               },
             ),
           ),
